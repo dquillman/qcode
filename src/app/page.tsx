@@ -18,7 +18,7 @@ export default function Home() {
             A collection of projects and work by{" "}
             <span className="font-semibold text-blue-300">Dave Quillman &quot;Q&quot;</span>
           </p>
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 flex flex-col items-center gap-2">
             <div className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-300 text-sm">
               ✨ Welcome!
             </div>
