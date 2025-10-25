@@ -64,7 +64,10 @@
       "Bash(wc:*)",
       "Bash(done)",
       "Bash(npm run bump:*)",
-      "WebFetch(domain:projectcalm.onrender.com)"
+      "WebFetch(domain:projectcalm.onrender.com)",
+      "Bash(tree:*)",
+      "Bash(npm run lint)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

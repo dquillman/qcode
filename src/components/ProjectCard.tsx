@@ -31,6 +31,16 @@ export default function ProjectCard({ title, url, description, tags, imageUrl, i
     setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
+    }
+  };
+
   return (
     <a
       href={url}
@@ -39,30 +49,41 @@ export default function ProjectCard({ title, url, description, tags, imageUrl, i
       className="group block bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 rounded-xl p-5 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1"
     >
       {hasImages && (
-        <div className="mb-4 aspect-video bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg overflow-hidden relative group/image shadow-lg">
-          <Image src={allImages[currentImageIndex]} alt={title} fill className="object-cover" unoptimized />
+        <div
+          className="mb-4 aspect-video bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg overflow-hidden relative group/image shadow-lg"
+          onKeyDown={hasMultipleImages ? handleKeyDown : undefined}
+          tabIndex={hasMultipleImages ? 0 : undefined}
+          role={hasMultipleImages ? "region" : undefined}
+          aria-label={hasMultipleImages ? `Image carousel for ${title}, image ${currentImageIndex + 1} of ${allImages.length}` : undefined}
+        >
+          <Image src={allImages[currentImageIndex]} alt={`${title} screenshot ${currentImageIndex + 1}`} fill className="object-cover" unoptimized />
 
           {hasMultipleImages && (
             <>
               <button
                 onClick={prevImage}
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-blue-500/80 hover:bg-blue-600 text-white rounded-full w-9 h-9 flex items-center justify-center opacity-0 group-hover/image:opacity-100 transition-all shadow-lg font-bold"
+                aria-label="Previous image"
+                title="Previous image (or press left arrow)"
               >
                 ‹
               </button>
               <button
                 onClick={nextImage}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-500/80 hover:bg-blue-600 text-white rounded-full w-9 h-9 flex items-center justify-center opacity-0 group-hover/image:opacity-100 transition-all shadow-lg font-bold"
+                aria-label="Next image"
+                title="Next image (or press right arrow)"
               >
                 ›
               </button>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm" role="status" aria-live="polite" aria-label={`Image ${currentImageIndex + 1} of ${allImages.length}`}>
                 {allImages.map((_, index) => (
                   <div
                     key={index}
                     className={`w-2 h-2 rounded-full transition-all ${
                       index === currentImageIndex ? "bg-blue-400 w-6" : "bg-white/60"
                     }`}
+                    aria-hidden="true"
                   />
                 ))}
               </div>
