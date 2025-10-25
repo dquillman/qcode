@@ -1,11 +1,20 @@
-import { ButtonHTMLAttributes, ReactNode } from "react";
+import { ButtonHTMLAttributes, ReactNode, LabelHTMLAttributes } from "react";
 
 type ButtonVariant = "primary" | "danger" | "secondary" | "ghost";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonAsButton = ButtonHTMLAttributes<HTMLButtonElement> & {
+  as?: "button";
   variant?: ButtonVariant;
   children: ReactNode;
 };
+
+type ButtonAsLabel = LabelHTMLAttributes<HTMLLabelElement> & {
+  as: "label";
+  variant?: ButtonVariant;
+  children: ReactNode;
+};
+
+type ButtonProps = ButtonAsButton | ButtonAsLabel;
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium shadow-lg shadow-blue-500/20",
@@ -18,17 +27,29 @@ export default function Button({
   variant = "primary",
   children,
   className = "",
-  disabled,
+  as = "button",
   ...props
 }: ButtonProps) {
-  const baseStyles = "px-4 py-2 rounded-lg transition-all";
-  const disabledStyles = disabled ? "opacity-50 cursor-not-allowed" : "";
+  const baseStyles = "px-4 py-2 rounded-lg transition-all inline-block";
+  const disabledStyles = "disabled" in props && props.disabled ? "opacity-50 cursor-not-allowed" : "";
+
+  const combinedClassName = `${baseStyles} ${variantStyles[variant]} ${disabledStyles} ${className}`;
+
+  if (as === "label") {
+    return (
+      <label
+        className={combinedClassName}
+        {...(props as LabelHTMLAttributes<HTMLLabelElement>)}
+      >
+        {children}
+      </label>
+    );
+  }
 
   return (
     <button
-      className={`${baseStyles} ${variantStyles[variant]} ${disabledStyles} ${className}`}
-      disabled={disabled}
-      {...props}
+      className={combinedClassName}
+      {...(props as ButtonHTMLAttributes<HTMLButtonElement>)}
     >
       {children}
     </button>

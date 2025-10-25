@@ -325,6 +325,39 @@ export default function ProjectsSection() {
     }
   }, [saveLocal]);
 
+  const handleExport = useCallback(() => {
+    const localProjects = items.filter((i) => i.source === "local");
+    const dataStr = JSON.stringify(localProjects, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `qcode-projects-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [items]);
+
+  const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string) as Project[];
+        const next = [...imported, ...items.filter((i) => i.source !== "local")];
+        setItems(next);
+        saveLocal(next);
+        alert(`Successfully imported ${imported.length} projects!`);
+      } catch (err) {
+        alert('Failed to import projects. Please check the file format.');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be imported again
+    e.target.value = '';
+  }, [items, saveLocal]);
+
   return (
     <section className="space-y-6" id="projects">
       <div className="flex items-center justify-between mb-2">
@@ -343,6 +376,19 @@ export default function ProjectsSection() {
                 variant="primary"
               >
                 {showForm ? "✕ Close" : "+ Add Project"}
+              </Button>
+              <Button onClick={handleExport} variant="secondary" title="Export projects to JSON file">
+                📥 Export
+              </Button>
+              <Button as="label" variant="secondary" title="Import projects from JSON file" className="cursor-pointer">
+                📤 Import
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImport}
+                  className="hidden"
+                  aria-label="Import projects"
+                />
               </Button>
               <Button onClick={handleLogout} variant="danger">
                 Logout
