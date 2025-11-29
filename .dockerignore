@@ -1,0 +1,12 @@
+node_modules
+.next/cache
+.next/server/app
+.git
+.env*
+npm-debug.log*
+Dockerfile*
+README.md
+*.local
+*.log
+**/.DS_Store
+

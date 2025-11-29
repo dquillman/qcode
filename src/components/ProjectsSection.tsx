@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import ProjectCard from "@/components/ProjectCard";
+import Toast from "@/components/Toast";
 import AdminLogin from "@/components/AdminLogin";
 import ProjectForm, { ProjectFormData } from "@/components/ProjectForm";
 import Button from "@/components/Button";
@@ -73,7 +74,7 @@ function SortableProjectCard({ project, isAdmin, onEdit, onDelete }: SortablePro
         imageUrl={project.imageUrl}
         images={project.images}
       />
-      {isAdmin && project.source === "local" && project.id.startsWith("local-") && (
+      {isAdmin && (
         <div className="absolute top-2 right-2 flex gap-1">
           <button
             onClick={() => onEdit(project)}
@@ -105,6 +106,13 @@ export default function ProjectsSection() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type?: "success" | "info" | "error" } | null>(null);
+  const [importToServer, setImportToServer] = useState(false);
+
+  const showToast = useCallback((message: string, type?: "success" | "info" | "error") => {
+    setToast({ message, type });
+  }, []);
+  // No longer prompting for token; rely on admin session cookie
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -115,7 +123,7 @@ export default function ProjectsSection() {
 
   // Check auth status on mount
   useEffect(() => {
-    fetch('/api/auth/check')
+    fetch('/api/auth/check', { credentials: 'include' })
       .then(r => r.json())
       .then((data: AuthResponse) => {
         if (data.authenticated) {
@@ -126,6 +134,8 @@ export default function ProjectsSection() {
         // Ignore errors
       });
   }, []);
+
+  // Token no longer required for UI actions
 
   // Load projects on mount
   useEffect(() => {
@@ -172,6 +182,11 @@ export default function ProjectsSection() {
       });
   }, []);
 
+  // When admin status changes, default import target accordingly
+  useEffect(() => {
+    setImportToServer(isAdmin);
+  }, [isAdmin]);
+
   const localOnly = useMemo(() => items.filter((i) => i.source === "local"), [items]);
 
   const saveLocal = useCallback((list: Project[]) => {
@@ -201,6 +216,7 @@ export default function ProjectsSection() {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ password }),
     });
     const data: LoginResponse = await response.json();
@@ -216,7 +232,7 @@ export default function ProjectsSection() {
 
   const handleLogout = useCallback(async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch {
       // Ignore errors
     }
@@ -255,9 +271,44 @@ export default function ProjectsSection() {
 
     if (editingProject) {
       // Update existing project
-      const next = items.map((item) =>
-        item.id === editingProject.id
-          ? {
+      if (editingProject.source === "server") {
+        try {
+          const payload = {
+            title: data.title.trim(),
+            url: data.url.trim(),
+            description: data.description.trim(),
+            tags: data.tags.split(",").map((t) => t.trim()).filter(Boolean),
+            imageUrl: validImages[0] || "",
+          };
+          const res = await fetch(`/api/projects/${editingProject.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
+            const msg = typeof (j as { error?: unknown }).error === 'string'
+              ? ((j as { error?: unknown }).error as string)
+              : `Update failed (${res.status})`;
+            throw new Error(msg);
+          }
+          const updated = await res.json();
+          const next = items.map((it) => it.id === editingProject.id
+            ? { ...it, ...updated, source: 'server' as const }
+            : it);
+          setItems(next);
+          showToast('Updated on server', 'success');
+        } catch (err) {
+          alert(err instanceof Error ? err.message : "Failed to update server project");
+          return;
+        }
+      } else {
+        const next = items.map((item) =>
+          item.id === editingProject.id
+            ? {
               ...item,
               title: data.title.trim(),
               url: data.url.trim(),
@@ -266,30 +317,91 @@ export default function ProjectsSection() {
               images: validImages,
               imageUrl: validImages[0] || "",
             }
-          : item
-      );
-      setItems(next);
-      saveLocal(next);
+            : item
+        );
+        setItems(next);
+        saveLocal(next);
+        showToast('Updated (local)', 'info');
+      }
     } else {
       // Add new project
-      const newItem: Project = {
-        id: `local-${crypto.randomUUID()}`,
+      const payload = {
         title: data.title.trim(),
         url: data.url.trim(),
         description: data.description.trim(),
-        tags: data.tags.split(",").map((t) => t.trim()).filter(Boolean),
-        images: validImages,
+        tags: data.tags,
         imageUrl: validImages[0] || "",
-        source: "local",
       };
-      const next = [newItem, ...items];
-      setItems(next);
-      saveLocal(next);
+
+      if (isAdmin) {
+        // Persist on server when logged in as admin
+        try {
+          const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
+            const msg = typeof (j as { error?: unknown }).error === 'string'
+              ? ((j as { error?: unknown }).error as string)
+              : `Create failed (${res.status})`;
+            throw new Error(msg);
+          }
+          const created = await res.json();
+          const newServer: Project = {
+            id: String(created.id),
+            title: String(created.title),
+            url: String(created.url),
+            description: String(created.description || ''),
+            tags: Array.isArray(created.tags) ? created.tags.map(String) : data.tags.split(',').map((t) => t.trim()).filter(Boolean),
+            imageUrl: created.imageUrl ? String(created.imageUrl) : (validImages[0] || ''),
+            images: validImages,
+            source: 'server',
+          };
+          setItems((prev) => [newServer, ...prev]);
+          showToast('Saved to server', 'success');
+        } catch (err) {
+          // Fallback to local if server add fails
+          alert(err instanceof Error ? err.message : 'Failed to add on server; saving locally.');
+          const newItem: Project = {
+            id: `local-${crypto.randomUUID()}`,
+            title: payload.title,
+            url: payload.url,
+            description: payload.description,
+            tags: data.tags.split(',').map((t) => t.trim()).filter(Boolean),
+            images: validImages,
+            imageUrl: payload.imageUrl,
+            source: 'local',
+          };
+          const next = [newItem, ...items];
+          setItems(next);
+          saveLocal(next);
+          showToast('Saved locally (server unavailable)', 'info');
+        }
+      } else {
+        // Not admin: keep client-side only
+        const newItem: Project = {
+          id: `local-${crypto.randomUUID()}`,
+          title: payload.title,
+          url: payload.url,
+          description: payload.description,
+          tags: data.tags.split(',').map((t) => t.trim()).filter(Boolean),
+          images: validImages,
+          imageUrl: payload.imageUrl,
+          source: 'local',
+        };
+        const next = [newItem, ...items];
+        setItems(next);
+        saveLocal(next);
+        showToast('Saved locally', 'info');
+      }
     }
 
     setEditingProject(null);
     setShowForm(false);
-  }, [editingProject, items, saveLocal]);
+  }, [editingProject, items, isAdmin, saveLocal]);
 
   const handleEdit = useCallback((project: Project) => {
     setEditingProject(project);
@@ -301,15 +413,47 @@ export default function ProjectsSection() {
     setShowForm(false);
   }, []);
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Delete this project?")) return;
+    const current = items.find((i) => i.id === id);
+    if (current?.source === 'server') {
+      try {
+        const res = await fetch(`/api/projects/${id}`, {
+          method: 'DELETE',
+          // session cookie carries admin auth
+          headers: {},
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
+          const msg = typeof (j as { error?: unknown }).error === 'string'
+            ? ((j as { error?: unknown }).error as string)
+            : `Delete failed (${res.status})`;
+          throw new Error(msg);
+        }
+        showToast('Deleted from server', 'success');
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Failed to delete server project");
+        return;
+      }
+    }
     const next = items.filter((i) => i.id !== id);
     setItems(next);
     saveLocal(next);
     if (editingProject?.id === id) {
       handleCancelEdit();
     }
+    if (!current || current.source !== 'server') {
+      showToast('Deleted (local)', 'info');
+    }
   }, [items, editingProject, saveLocal, handleCancelEdit]);
+
+  const handleClearLocal = useCallback(() => {
+    if (!confirm("Remove all local projects from this browser?")) return;
+    const next = items.filter((i) => i.source !== "local");
+    setItems(next);
+    saveLocal(next);
+  }, [items, saveLocal]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -342,13 +486,54 @@ export default function ProjectsSection() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const imported = JSON.parse(event.target?.result as string) as Project[];
-        const next = [...imported, ...items.filter((i) => i.source !== "local")];
-        setItems(next);
-        saveLocal(next);
-        alert(`Successfully imported ${imported.length} projects!`);
+        const imported = JSON.parse(event.target?.result as string) as unknown;
+
+        if (isAdmin && importToServer) {
+          // As admin, import directly to server to persist data
+          const body = Array.isArray(imported) ? imported : { projects: imported };
+          const res = await fetch('/api/admin/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body),
+          });
+          const j = await res.json().catch(() => ({} as Record<string, unknown>));
+          if (!res.ok) throw new Error((j as { error?: string }).error || `Import failed (${res.status})`);
+
+          // Refresh from server
+          const serverRes = await fetch('/api/projects', { credentials: 'include' });
+          const serverList = await serverRes.json().catch(() => []);
+          const serverMapped: Project[] = Array.isArray(serverList)
+            ? serverList.map((p: Record<string, unknown>, i: number) => {
+              const rec = p as { id?: unknown; title?: unknown; url?: unknown; description?: unknown; tags?: unknown; imageUrl?: unknown };
+              const tags = Array.isArray(rec.tags) ? (rec.tags as unknown[]).map(String) : [];
+              return {
+                id: String(rec.id ?? `srv-${i}`),
+                title: String(rec.title ?? ''),
+                url: String(rec.url ?? ''),
+                description: String(rec.description ?? ''),
+                tags,
+                imageUrl: rec.imageUrl ? String(rec.imageUrl) : '',
+                source: 'server' as const,
+              };
+            })
+            : [];
+          setItems((prev) => [
+            ...serverMapped,
+            ...prev.filter((i) => i.source !== 'server' && i.source !== 'default'),
+            ...prev.filter((i) => i.source === 'default'),
+          ]);
+          setToast({ message: `Imported ${j?.imported ?? ''} to server`, type: 'success' });
+        } else {
+          // Not admin: keep local-only import
+          const list = Array.isArray(imported) ? (imported as Project[]) : [];
+          const next = [...list, ...items.filter((i) => i.source !== 'local')];
+          setItems(next);
+          saveLocal(next);
+          setToast({ message: `Imported ${list.length} locally`, type: 'info' });
+        }
       } catch (err) {
         alert('Failed to import projects. Please check the file format.');
       }
@@ -356,7 +541,7 @@ export default function ProjectsSection() {
     reader.readAsText(file);
     // Reset input so same file can be imported again
     e.target.value = '';
-  }, [items, saveLocal]);
+  }, [isAdmin, importToServer, items, saveLocal]);
 
   return (
     <section className="space-y-6" id="projects">
@@ -377,9 +562,22 @@ export default function ProjectsSection() {
               >
                 {showForm ? "✕ Close" : "+ Add Project"}
               </Button>
+              <Button onClick={handleClearLocal} variant="secondary" title="Remove all local projects from this browser">
+                Clear Local
+              </Button>
               <Button onClick={handleExport} variant="secondary" title="Export projects to JSON file">
                 📥 Export
-              </Button>
+              </Button>              {isAdmin && (
+                <label className="flex items-center gap-2 text-xs text-slate-300 px-2 py-1 border border-slate-700 rounded">
+                  <input
+                    type="checkbox"
+                    className="accent-blue-500"
+                    checked={importToServer}
+                    onChange={(e) => setImportToServer(e.target.checked)}
+                  />
+                  Import to server
+                </label>
+              )}
               <Button as="label" variant="secondary" title="Import projects from JSON file" className="cursor-pointer">
                 📤 Import
                 <input
@@ -449,11 +647,16 @@ export default function ProjectsSection() {
         </DndContext>
       </ErrorBoundary>
 
-      {localOnly.length > 0 && (
+      {isAdmin ? (
         <div className="text-xs text-slate-400">
-          Your added projects are saved only in this browser (localStorage).
+          You’re logged in. New projects save to the server.
         </div>
+      ) : null}
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </section>
   );
 }
+

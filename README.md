@@ -162,6 +162,10 @@ const correctPassword = "your-secure-password"; // Line 199
 2. Deploy the `.next` folder
 3. Add environment variables
 
+### Deploy to Google Cloud Run
+
+For production on Google Cloud Run with Cloud SQL (Postgres), follow the step-by-step guide in `DEPLOY.md`.
+
 ## 📝 Usage
 
 ### Adding a Project

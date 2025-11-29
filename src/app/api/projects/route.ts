@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import { randomUUID } from "crypto";
-import path from "path";
+import { getProjects, createProject, type DbProject } from "@/lib/db";
+import { cookies } from "next/headers";
 
 type Project = {
   id: string;
@@ -12,32 +11,38 @@ type Project = {
   imageUrl?: string;
 };
 
-const dataFile = path.join(process.cwd(), "src", "data", "projects.json");
-
-async function readProjects(): Promise<Project[]> {
-  try {
-    const raw = await fs.readFile(dataFile, "utf8");
-    return JSON.parse(raw);
-  } catch (err: unknown) {
-    if (err && typeof err === "object" && "code" in err && (err.code === "ENOENT" || err.code === "EISDIR")) return [];
-    throw err;
-  }
-}
-
-async function writeProjects(list: Project[]) {
-  const json = JSON.stringify(list, null, 2);
-  await fs.writeFile(dataFile, json, "utf8");
-}
-
 export async function GET() {
-  const list = await readProjects();
-  return NextResponse.json(list, { status: 200 });
+  const dbProjects = await getProjects();
+  const result: Project[] = dbProjects.map((r: DbProject) => ({
+    id: r.id,
+    title: r.title,
+    url: r.url,
+    description: r.description,
+    imageUrl: r.image_url || undefined,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+  }));
+  return NextResponse.json(result, { status: 200 });
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get("authorization") || "";
-  const token = process.env.ADMIN_TOKEN;
-  if (!token || auth !== `Bearer ${token}`) {
+  async function isAuthorized() {
+    // Bearer token path
+    const auth = req.headers.get("authorization") || "";
+    const token = process.env.ADMIN_TOKEN;
+    if (token && auth === `Bearer ${token}`) return true;
+    // Session cookie path
+    try {
+      const store = await cookies();
+      const session = store.get("admin_session");
+      if (!session) return false;
+      const expiry = parseInt(session.value);
+      return Number.isFinite(expiry) && expiry > Date.now();
+    } catch {
+      return false;
+    }
+  }
+
+  if (!(await isAuthorized())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -65,11 +70,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Title and valid URL are required" }, { status: 400 });
   }
 
-  const list = await readProjects();
-  const id = `srv-${randomUUID()}`;
-  const project: Project = { id, title, url, description, imageUrl, tags };
-  const next = [project, ...list];
-  await writeProjects(next);
+  const newProject = await createProject({
+    title,
+    url,
+    description,
+    image_url: imageUrl || null,
+    tags
+  });
 
+  const project: Project = {
+    id: newProject.id,
+    title: newProject.title,
+    url: newProject.url,
+    description: newProject.description,
+    imageUrl: newProject.image_url || undefined,
+    tags: newProject.tags
+  };
   return NextResponse.json(project, { status: 201 });
 }

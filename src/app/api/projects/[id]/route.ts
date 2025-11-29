@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { getProject, updateProject, deleteProject, type DbProject } from "@/lib/db";
+import { cookies } from "next/headers";
 
 type Project = {
   id: string;
@@ -11,45 +11,32 @@ type Project = {
   imageUrl?: string;
 };
 
-const dataFile = path.join(process.cwd(), "src", "data", "projects.json");
-
-async function readProjects(): Promise<Project[]> {
-  try {
-    const raw = await fs.readFile(dataFile, "utf8");
-    return JSON.parse(raw);
-  } catch (err: unknown) {
-    if (err && typeof err === "object" && "code" in err && (err.code === "ENOENT" || err.code === "EISDIR")) return [];
-    throw err;
-  }
-}
-
-async function writeProjects(list: Project[]) {
-  const json = JSON.stringify(list, null, 2);
-  await fs.writeFile(dataFile, json, "utf8");
-}
-
-function isAuthorized(req: NextRequest) {
+async function isAuthorized(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
   const token = process.env.ADMIN_TOKEN;
-  return Boolean(token && auth === `Bearer ${token}`);
+  if (token && auth === `Bearer ${token}`) return true;
+  try {
+    const store = await cookies();
+    const session = store.get("admin_session");
+    if (!session) return false;
+    const expiry = parseInt(session.value);
+    return Number.isFinite(expiry) && expiry > Date.now();
+  } catch {
+    return false;
+  }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!isAuthorized(_req)) {
+  if (!(await isAuthorized(_req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const list = await readProjects();
-  const next = list.filter((p) => String(p.id) !== String(id));
-  if (next.length === list.length) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  await writeProjects(next);
+  await deleteProject(id);
   return NextResponse.json({ ok: true }, { status: 200 });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!isAuthorized(req)) {
+  if (!(await isAuthorized(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
@@ -65,30 +52,32 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const bodyObj = body as Record<string, unknown>;
 
-  const list = await readProjects();
-  const idx = list.findIndex((p) => String(p.id) === String(id));
-  if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const current = await getProject(id);
+  if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const current = list[idx];
   const updated: Project = {
-    ...current,
+    id: current.id,
     title: (bodyObj.title ?? current.title).toString().trim(),
     url: (bodyObj.url ?? current.url).toString().trim(),
     description: (bodyObj.description ?? current.description).toString(),
-    imageUrl: (bodyObj.imageUrl ?? (current.imageUrl || "")).toString(),
+    imageUrl: (bodyObj.imageUrl ?? (current.image_url || "")).toString(),
     tags: Array.isArray(bodyObj.tags)
       ? bodyObj.tags.map((t: unknown) => String(t).trim()).filter(Boolean)
       : typeof bodyObj.tags === "string"
-      ? bodyObj.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
-      : current.tags,
+        ? bodyObj.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
+        : (current.tags as string[]),
   };
 
   if (!updated.title || !updated.url || !/^https?:\/\//i.test(updated.url)) {
     return NextResponse.json({ error: "Title and valid URL are required" }, { status: 400 });
   }
 
-  list[idx] = updated;
-  await writeProjects(list);
+  await updateProject(id, {
+    title: updated.title,
+    url: updated.url,
+    description: updated.description,
+    image_url: updated.imageUrl || null,
+    tags: updated.tags
+  });
   return NextResponse.json(updated, { status: 200 });
 }
-

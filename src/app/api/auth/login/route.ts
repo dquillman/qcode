@@ -7,8 +7,8 @@ export async function POST(request: NextRequest) {
   try {
     const { password } = await request.json();
 
-    // Get password from environment variable
-    const correctPassword = process.env.ADMIN_PASSWORD;
+    // Get password from environment variable (fallback to ADMIN_TOKEN)
+    const correctPassword = process.env.ADMIN_PASSWORD || process.env.ADMIN_TOKEN;
 
     if (!correctPassword) {
       return NextResponse.json(

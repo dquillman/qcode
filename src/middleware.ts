@@ -10,6 +10,7 @@ export function middleware(_request: NextRequest) {
     "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // unsafe-inline needed for Next.js
     "style-src 'self' 'unsafe-inline'", // unsafe-inline needed for Tailwind
     "img-src 'self' blob: data: https:",
+    "media-src 'self' data:",
     "font-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

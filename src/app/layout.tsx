@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Code Q Projects",
   description: "Project portfolio and code showcase",
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export default function RootLayout({
