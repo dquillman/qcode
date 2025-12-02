@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { importProjects, type DbProject } from "@/lib/db";
 import { randomUUID } from "crypto";
+import { cookies } from "next/headers";
 
 type IncomingProject = {
   id?: string;
@@ -14,7 +15,23 @@ type IncomingProject = {
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
   const token = process.env.ADMIN_TOKEN;
-  if (!token || auth !== `Bearer ${token}`) {
+
+  // Check for Bearer token
+  let isAuthenticated = token && auth === `Bearer ${token}`;
+
+  // If not authenticated by token, check for session cookie
+  if (!isAuthenticated) {
+    const cookieStore = await cookies();
+    const session = cookieStore.get('admin_session');
+    if (session) {
+      const expiry = parseInt(session.value);
+      if (expiry > Date.now()) {
+        isAuthenticated = true;
+      }
+    }
+  }
+
+  if (!isAuthenticated) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

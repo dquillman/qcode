@@ -9,9 +9,10 @@ type ProjectCardProps = {
   tags: string[];
   imageUrl?: string;
   images?: string[];
+  source?: 'local' | 'server' | 'default';
 };
 
-export default function ProjectCard({ title, url, description, tags, imageUrl, images }: ProjectCardProps) {
+export default function ProjectCard({ title, url, description, tags, imageUrl, images, source }: ProjectCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Support both new images array and legacy single imageUrl
@@ -41,12 +42,26 @@ export default function ProjectCard({ title, url, description, tags, imageUrl, i
     }
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // If the click target is a button or inside a button, don't navigate
+    if ((e.target as HTMLElement).closest('button')) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleKeyDownCard = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group block bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 rounded-xl p-5 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1"
+    <div
+      onClick={handleCardClick}
+      onKeyDown={handleKeyDownCard}
+      role="link"
+      tabIndex={0}
+      className="group block bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 rounded-xl p-5 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1 cursor-pointer"
     >
       {hasImages && (
         <div
@@ -80,9 +95,8 @@ export default function ProjectCard({ title, url, description, tags, imageUrl, i
                 {allImages.map((_, index) => (
                   <div
                     key={index}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      index === currentImageIndex ? "bg-blue-400 w-6" : "bg-white/60"
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-all ${index === currentImageIndex ? "bg-blue-400 w-6" : "bg-white/60"
+                      }`}
                     aria-hidden="true"
                   />
                 ))}
@@ -102,6 +116,20 @@ export default function ProjectCard({ title, url, description, tags, imageUrl, i
           ))}
         </div>
       )}
-    </a>
+      {source && (
+        <div className="absolute top-2 right-2">
+          {source === 'local' && (
+            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-yellow-300 bg-yellow-500/20 border border-yellow-500/30 rounded-full backdrop-blur-md shadow-sm">
+              Local Only
+            </span>
+          )}
+          {source === 'server' && (
+            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 rounded-full backdrop-blur-md shadow-sm">
+              Cloud Synced
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

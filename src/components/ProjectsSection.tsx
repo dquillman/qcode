@@ -32,6 +32,7 @@ type SortableProjectCardProps = {
   isAdmin: boolean;
   onEdit: (project: Project) => void;
   onDelete: (id: string) => void;
+  source?: 'local' | 'server' | 'default';
 };
 
 function SortableProjectCard({ project, isAdmin, onEdit, onDelete }: SortableProjectCardProps) {
@@ -73,6 +74,7 @@ function SortableProjectCard({ project, isAdmin, onEdit, onDelete }: SortablePro
         tags={project.tags}
         imageUrl={project.imageUrl}
         images={project.images}
+        source={project.source}
       />
       {isAdmin && (
         <div className="absolute top-2 right-2 flex gap-1">
@@ -177,8 +179,9 @@ export default function ProjectsSection() {
         });
         setItems((prev) => [...serverMapped, ...prev.filter((x) => x.source !== "default"), ...defaults]);
       })
-      .catch(() => {
-        // ignore fetch errors silently
+      .catch((err) => {
+        console.error("Failed to fetch projects:", err);
+        showToast("Failed to load projects from server", "error");
       });
   }, []);
 
@@ -492,7 +495,16 @@ export default function ProjectsSection() {
 
         if (isAdmin && importToServer) {
           // As admin, import directly to server to persist data
-          const body = Array.isArray(imported) ? imported : { projects: imported };
+          const rawList = Array.isArray(imported) ? imported : (imported as { projects: unknown[] }).projects || [];
+          const body = {
+            projects: (rawList as Record<string, unknown>[]).map(p => ({
+              ...p,
+              url: p.url && typeof p.url === 'string' && !/^https?:\/\//i.test(p.url)
+                ? `https://${p.url}`
+                : p.url
+            }))
+          };
+
           const res = await fetch('/api/admin/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -535,7 +547,7 @@ export default function ProjectsSection() {
           setToast({ message: `Imported ${list.length} locally`, type: 'info' });
         }
       } catch (err) {
-        alert('Failed to import projects. Please check the file format.');
+        alert(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     };
     reader.readAsText(file);

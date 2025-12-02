@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProjects, createProject, type DbProject } from "@/lib/db";
 import { cookies } from "next/headers";
 
+export const dynamic = 'force-dynamic';
+
 type Project = {
   id: string;
   title: string;
