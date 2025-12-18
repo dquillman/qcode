@@ -106,7 +106,7 @@ export default function ProjectCard({ title, url, description, tags, imageUrl, i
         </div>
       )}
       <h3 className="font-bold text-xl mb-2 text-white group-hover:text-blue-300 transition-colors">{title}</h3>
-      {description && <p className="text-sm text-slate-300 mb-4 leading-relaxed">{description}</p>}
+      {description && <p className="text-sm text-slate-300 mb-4 leading-relaxed max-h-32 overflow-y-auto pr-2 custom-scrollbar">{description}</p>}
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {tags.map((tag) => (

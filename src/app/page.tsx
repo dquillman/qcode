@@ -28,6 +28,11 @@ export default function Home() {
           </div>
         </div>
         <ProjectsSection />
+
+        <footer className="mt-20 pt-8 border-t border-slate-800 text-center text-slate-500 text-sm">
+          <p>© {new Date().getFullYear()} Code Q. All rights reserved.</p>
+          <p className="mt-2 text-slate-600">For demonstration purposes only.</p>
+        </footer>
       </main>
     </div>
   );

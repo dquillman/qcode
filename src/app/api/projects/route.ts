@@ -11,6 +11,7 @@ type Project = {
   description: string;
   tags: string[];
   imageUrl?: string;
+  images?: string[];
 };
 
 export async function GET() {
@@ -21,6 +22,7 @@ export async function GET() {
     url: r.url,
     description: r.description,
     imageUrl: r.image_url || undefined,
+    images: Array.isArray(r.images) ? r.images : [],
     tags: Array.isArray(r.tags) ? r.tags : [],
   }));
   return NextResponse.json(result, { status: 200 });
@@ -64,6 +66,9 @@ export async function POST(req: NextRequest) {
   const url = (bodyObj.url ?? "").toString().trim();
   const description = (bodyObj.description ?? "").toString().trim();
   const imageUrl = (bodyObj.imageUrl ?? "").toString().trim();
+  let images: string[] = [];
+  if (Array.isArray(bodyObj.images)) images = bodyObj.images.map(String).filter(Boolean);
+
   let tags: string[] = [];
   if (Array.isArray(bodyObj.tags)) tags = bodyObj.tags.map((t: unknown) => String(t).trim()).filter(Boolean);
   else if (typeof bodyObj.tags === "string") tags = bodyObj.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
@@ -77,6 +82,7 @@ export async function POST(req: NextRequest) {
     url,
     description,
     image_url: imageUrl || null,
+    images,
     tags
   });
 
@@ -86,6 +92,7 @@ export async function POST(req: NextRequest) {
     url: newProject.url,
     description: newProject.description,
     imageUrl: newProject.image_url || undefined,
+    images: newProject.images,
     tags: newProject.tags
   };
   return NextResponse.json(project, { status: 201 });

@@ -1,10 +1,13 @@
 {
   "name": "code-q-projects",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "private": true,
+  "engines": {
+    "node": "20"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node scripts/migrate.js"
@@ -15,7 +18,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "firebase-admin": "^13.6.0",
     "googleapis": "^164.1.0",
-    "next": "15.5.4",
+    "next": "^15.0.5",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },

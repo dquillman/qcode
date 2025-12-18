@@ -14,6 +14,7 @@ export type DbProject = {
   url: string;
   description: string;
   image_url: string | null;
+  images: string[];
   tags: string[];
   created_at?: Timestamp;
 };

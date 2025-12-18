@@ -9,6 +9,7 @@ type IncomingProject = {
   url: string;
   description?: string;
   imageUrl?: string;
+  images?: string[];
   tags?: string[] | string;
 };
 
@@ -63,10 +64,12 @@ export async function POST(req: NextRequest) {
       const url = String(p.url || "").trim();
       const description = String(p.description || "");
       const imageUrl = p.imageUrl ? String(p.imageUrl) : "";
+      let images: string[] = [];
+      if (Array.isArray(p.images)) images = p.images.map(String).filter(Boolean);
       let tags: string[] = [];
       if (Array.isArray(p.tags)) tags = p.tags.map((t) => String(t).trim()).filter(Boolean);
       else if (typeof p.tags === "string") tags = p.tags.split(",").map((t) => t.trim()).filter(Boolean);
-      return { title, url, description, image_url: imageUrl || null, tags };
+      return { title, url, description, image_url: imageUrl || null, images, tags };
     })
     .filter((p) => p.title && p.url && /^https?:\/\//i.test(p.url));
 
